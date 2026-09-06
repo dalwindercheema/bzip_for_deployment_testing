@@ -1,11 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jan 14 00:20:06 2025
-
-@author: dsing243
-"""
-import time
 import numpy
 import torch
 from torch.utils.data import Dataset
@@ -28,7 +20,6 @@ class transform_bzip_seqs():
         self.seq_x = numpy.zeros((len(self.prot), self.maxlen))
         self.other_seq_x = numpy.zeros((len(self.prot), self.maxlen, 6))
         self.seg_x = numpy.zeros((len(self.prot), self.maxlen))
-        self.masked_tokens = numpy.zeros((len(self.prot), self.n_masks, 7))
         
     def get_id(self, ids):
         id_for_vb = self.mvocab.get(ids)
@@ -90,6 +81,7 @@ class transform_bzip_seqs():
    
     def transform(self):
         for idx in range(len(self.prot)):
-            self.get_seqids(self.prot[idx], idx)
+            tmp_paired_seq = ['<cls>'] + [(seqa,seqb) for seqa,seqb in  zip(self.prot[idx][0], self.prot[idx][1]) ]
+            self.get_seqids(tmp_paired_seq, idx)
         return (self.seq_x, self.other_seq_x, self.seg_x)
     
