@@ -3,9 +3,11 @@ import sys
 import numpy
 import torch
 import configparser
-import pandas as pd
+import argparse
+import json
 import warnings
 import math
+from huggingface_hub import hf_hub_download
 
 from bin.vocab import new_amino_acid_vocab
 from bin.encode_data import transform_bzip_seqs
@@ -88,10 +90,64 @@ def find_motifs(protA, protB, bzip_motif_detector, bzip_interaction_detector, mv
         return 0, 0
 
 
-def bPPI_predict(seqA, seqB):
-    bzip_motif_detector_loc = "/content/drive/My Drive/bzip/motifDectector.pt"
-    bzip_interaction_detector_loc = "/content/drive/My Drive/bzip/GeneralInteraction.pt"
+CONFIG_FILE = "bppi_config.json"
+
+def save_config(motif_path, interaction_path):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump({
+                   "motif_detector": motif_path,
+                   "interaction_detector": interaction_path
+                   }, f)
+
+def load_config():
+    if not os.path.exists(CONFIG_FILE):
+        print("Error: Weights not found!", file=sys.stderr)
+        print("Please run the download command first:", file=sys.stderr)
+        print("  python predict.py --download General", file=sys.stderr)
+        sys.exit(1)
+    with open(CONFIG_FILE, "r") as f:
+        return json.load(f)
+        
+_DOWNLOADED_MODELS = {
+    "motif_detector": None,
+    "interaction_detector": None
+}
+
+def download_models(PPI_TYPE="General"):
+    model_mapping = {
+                     "General": "GeneralInteraction.pt",
+                     "Temperature4C": "Temperature_4.pt",
+                     "Temperature21C": "Temperature_21.pt",
+                     "Temperature37C": "Temperature_37.pt"
+                    }
     
+    if PPI_TYPE not in model_mapping:
+        raise ValueError(f"Unknown PPI_TYPE selected. Choose from: {list(model_mapping.keys())}")
+        
+    filename = model_mapping[PPI_TYPE]
+    
+    print("Downloading motif detector... ")
+    motif_detector_path = hf_hub_download(repo_id="dalwindercheema/bPPI", 
+                                          filename="motifDectector.pt"
+                                          )
+                                                           
+    print(f"Downloading {PPI_TYPE} interaction detector ({filename})... ")
+    
+    interaction_path = hf_hub_download(repo_id="dalwindercheema/bPPI", 
+                                       filename=filename
+                                       )
+                                       
+    print("All weights downloaded and loaded successfully!")
+    save_config(motif_detector_path, interaction_path)
+
+
+
+def bPPI_predict(seqA, seqB, debug = False):
+    config = load_config()
+    bzip_motif_detector_loc = config["motif_detector"]
+    bzip_interaction_predictor_loc = config["interaction_detector"]
+    
+    print(f"Predicting with {bzip_interaction_predictor_loc.split('/')[-1].replace('.pt', '')}")
     config = configparser.ConfigParser()
     config.read('config')
     device = 'cpu'
@@ -108,16 +164,12 @@ def bPPI_predict(seqA, seqB):
     
     bzip_motif_detector = BZIP_MOTIF(vocab_size, ovocab_size, n_segments, d_model, n_layers, n_heads)
     snap = torch.load(bzip_motif_detector_loc, weights_only=True, map_location=torch.device('cpu'))
-    print('Loading motif detector model: Start')
     bzip_motif_detector.load_state_dict(snap)
-    print('Loading motif detector model: Done!')
     bzip_motif_detector = bzip_motif_detector.to(device)
     
     bzip_interaction_detector = BZIP_INTERACTION(vocab_size, ovocab_size, n_segments, d_model, n_layers, n_heads)
-    snap = torch.load(bzip_interaction_detector_loc, weights_only=True, map_location=torch.device('cpu'))
-    print('Loading motif interaction model: Start')
+    snap = torch.load(bzip_interaction_predictor_loc, weights_only=True, map_location=torch.device('cpu'))
     bzip_interaction_detector.load_state_dict(snap)
-    print('Loading motif interaction model: Done!')
     bzip_interaction_detector = bzip_interaction_detector.to(device)
     
     seqA = read_sequence(seqA)
@@ -126,4 +178,27 @@ def bPPI_predict(seqA, seqB):
     
     print(f"Motifs detected: {nmotifs}")
     print(f"Interaction Probability: {max_pred}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Predict bZIP protein protein interaction (bPPI)")
     
+    parser.add_argument("--download", type=str, metavar="MODEL_TYPE",
+                        choices=["General", "Temperature4C", "Temperature21C", "Temperature37C"],
+                        help="Download weights. Options: General, Temperature4C, Temperature 21C, Temperature 37C")
+    
+
+    parser.add_argument("--seqA", type=str, metavar="PATH", help="FASTA file for sequence A")
+    parser.add_argument("--seqB", type=str, metavar="PATH", help="FASTA file for sequence B")
+
+    args = parser.parse_args()
+
+    # Routing based on which flags the user provided
+    if args.download:
+        download_models(args.download)
+    elif args.seqA and args.seqB:
+        score = bPPI_predict(args.seqA, args.seqB)
+    else:
+        parser.print_help()
+        print("\n Error: Please specify either --download OR both --seqA and --seqB flags.", file=sys.stderr)
+        sys.exit(1)
+      
