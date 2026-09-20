@@ -15,6 +15,8 @@ from bin.bzip_models import BZIP_MOTIF, BZIP_INTERACTION
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="jupyter_client")
 
+CONFIG_FILE = "bppi_config.json"
+
 def sigmoid(x):
     return 1 / (1 + math.exp(-x))
 
@@ -89,8 +91,6 @@ def find_motifs(protA, protB, bzip_motif_detector, bzip_interaction_detector, mv
     else:
         return 0, 0
 
-
-CONFIG_FILE = "bppi_config.json"
 
 def save_config(motif_path, interaction_path):
     with open(CONFIG_FILE, "w") as f:
