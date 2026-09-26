@@ -201,7 +201,7 @@ if __name__ == "__main__":
         download_models(args.download)
     elif args.seqA and args.seqB:
         best_pair, atten_scores = bPPI_predict(args.seqA, args.seqB)
-        if( args.viewInteraction ):
+        if( args.viewInteraction and best_pair is not None):
             nlen = min(len(best_pair[0]), len(best_pair[1]))
             sinfo_a = best_pair[0][:nlen]
             sinfo_b = best_pair[1][:nlen]
