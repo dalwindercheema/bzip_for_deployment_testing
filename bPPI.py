@@ -19,6 +19,13 @@ warnings.filterwarnings("ignore", category=DeprecationWarning, module="jupyter_c
 
 CONFIG_FILE = "bppi_config.json"
 
+_DOWNLOADED_MODELS = {
+    "motif_detector": None,
+    "interaction_detector": None
+}
+
+
+
 def sigmoid(x):
     return 1 / (1 + math.exp(-x))
 
@@ -111,11 +118,6 @@ def load_config():
     with open(CONFIG_FILE, "r") as f:
         return json.load(f)
         
-_DOWNLOADED_MODELS = {
-    "motif_detector": None,
-    "interaction_detector": None
-}
-
 def download_models(PPI_TYPE="General"):
     model_mapping = {
                      "General": "GeneralInteraction.pt",
@@ -212,7 +214,7 @@ if __name__ == "__main__":
             plot_cls_attention_heptad(sinfo_a,
                                       sinfo_b,
                                       cls_attention,
-                                      [Path(args.seqA).name.split('.')[0], Path(args.seqA).name.split('.')[1]],
+                                      [Path(args.seqA).name.split('.')[0], Path(args.seqA).name.split('.')[0]],
                                      )
     else:
         parser.print_help()
