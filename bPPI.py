@@ -87,10 +87,11 @@ def find_motifs_and_predict_interaction(protA, protB, bzip_motif_detector, bzip_
                                       
         sigmoid_prob = sigmoid(logits_clsf[0, 1])
         sigmoid_prob = numpy.round(sigmoid_prob, 2)
-        enc_self_attn = enc_self_attn.cpu().numpy()        
-        return len(high_prob_indices), sigmoid_prob, enc_self_attn
+        best_pair = n_pairs[high_prob_indices[0]]
+        enc_self_attn = enc_self_attn.cpu().numpy()  
+        return len(high_prob_indices), sigmoid_prob, best_pair, enc_self_attn
     else:
-        return 0, 0, None
+        return 0, 0, None, None
 
 
 def save_config(motif_path, interaction_path):
@@ -175,11 +176,11 @@ def bPPI_predict(seqA, seqB, debug = False):
     
     seqA = read_sequence(seqA)
     seqB = read_sequence(seqB)
-    nmotifs, max_pred, enc_self_attn = find_motifs_and_predict_interaction(seqA, seqB, bzip_motif_detector, bzip_interaction_detector, mvocab, ovocab, am_acid, device)
+    nmotifs, max_pred, best_pair, enc_self_attn = find_motifs_and_predict_interaction(seqA, seqB, bzip_motif_detector, bzip_interaction_detector, mvocab, ovocab, am_acid, device)
     
     print(f"Motifs detected: {nmotifs}")
     print(f"Interaction Probability: {max_pred}")
-    return enc_self_attn
+    return best_pair, enc_self_attn
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Predict bZIP protein protein interaction (bPPI)")
@@ -198,7 +199,7 @@ if __name__ == "__main__":
     if args.download:
         download_models(args.download)
     elif args.seqA and args.seqB:
-        enc_self_attn = bPPI_predict(args.seqA, args.seqB)
+        best_pair, enc_self_attn = bPPI_predict(args.seqA, args.seqB)
     else:
         parser.print_help()
         print("\n Error: Please specify either --download OR both --seqA and --seqB flags.", file=sys.stderr)
