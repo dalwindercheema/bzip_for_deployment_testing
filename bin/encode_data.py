@@ -14,8 +14,12 @@ class transform_bzip_seqs():
         self.vocabsize = len(mvocab)
         pmaxlen = (maxlen-self.zipper_begin) // 7
         self.maxlen = pmaxlen * 7 + self.zipper_begin + 1
-        self.other_info = ['chemical', 'charge', 'H_donor' ,'polarity', 
-                           'hydropathy', 'volume']
+        self.other_info = ['chemical', 
+                           'charge', 
+                           'H_donor',
+                           'polarity', 
+                           'hydropathy', 
+                           'volume']
         self.n_other_info = len(self.other_info)
         self.seq_x = numpy.zeros((len(self.prot), self.maxlen))
         self.other_seq_x = numpy.zeros((len(self.prot), self.maxlen, 6))
@@ -77,7 +81,6 @@ class transform_bzip_seqs():
                 self.other_seq_x[prot_idx, p_idx, :] = id_for_other_vb
                 self.seg_x[prot_idx, p_idx] = sid
                 n_idx += 1
-   
    
     def transform(self):
         for idx in range(len(self.prot)):

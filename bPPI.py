@@ -7,11 +7,13 @@ import argparse
 import json
 import warnings
 import math
+from pathlib import Path
 from huggingface_hub import hf_hub_download
 
 from bin.vocab import new_amino_acid_vocab
 from bin.encode_data import transform_bzip_seqs
 from bin.bzip_models import BZIP_MOTIF, BZIP_INTERACTION
+from bin.view_interaction import plot_cls_attention_heptad
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="jupyter_client")
 
@@ -38,7 +40,6 @@ def read_sequence(seq_path):
             if not line.startswith(">"):
                 seq += line.strip()
     return seq
-
 
 def find_motifs_and_predict_interaction(protA, protB, bzip_motif_detector, bzip_interaction_detector, mvocab, ovocab, am_acid, device, MAXL = 92, max_batch_size = 256):
     max_to_search_A = len(protA) - 29
@@ -192,14 +193,27 @@ if __name__ == "__main__":
 
     parser.add_argument("--seqA", type=str, metavar="PATH", help="FASTA file for sequence A")
     parser.add_argument("--seqB", type=str, metavar="PATH", help="FASTA file for sequence B")
+    parser.add_argument("--viewInteraction", action="store_true", help="View interaction. Default: False")
 
     args = parser.parse_args()
 
-    # Routing based on which flags the user provided
     if args.download:
         download_models(args.download)
     elif args.seqA and args.seqB:
-        best_pair, enc_self_attn = bPPI_predict(args.seqA, args.seqB)
+        best_pair, atten_scores = bPPI_predict(args.seqA, args.seqB)
+        if( args.viewInteraction ):
+            nlen = min(len(best_pair[0]), len(best_pair[1]))
+            sinfo_a = best_pair[0][:nlen]
+            sinfo_b = best_pair[1][:nlen]
+
+            atten_scores = atten_scores[0, :, :, :]
+            cls_attention = numpy.mean(atten_scores, axis=0)[0, :]
+            
+            plot_cls_attention_heptad(sinfo_a,
+                                      sinfo_b,
+                                      cls_attention,
+                                      [Path(args.seqA).name.split('.')[0], Path(args.seqA).name.split('.')[1]],
+                                     )
     else:
         parser.print_help()
         print("\n Error: Please specify either --download OR both --seqA and --seqB flags.", file=sys.stderr)
