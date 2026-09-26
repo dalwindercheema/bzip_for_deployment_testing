@@ -24,12 +24,12 @@ def sigmoid(x):
 def evaluate_motifs(model, seq, addinfo, seg, device):
     model.eval()
     with torch.no_grad():
-        logits_clsf, _ = model(seq, 
-                               addinfo,                               
-                               seg,
-                              )
+        logits_clsf, enc_self_attn = model(seq, 
+                                           addinfo,
+                                           seg,
+                                          )
         logits_clsf = logits_clsf.detach().cpu().numpy()
-        return logits_clsf
+        return logits_clsf, enc_self_attn
 
 def read_sequence(seq_path):
     seq = ""
@@ -61,18 +61,18 @@ def find_motifs_and_predict_interaction(protA, protB, bzip_motif_detector, bzip_
         logits_clsf = []
         for i in range(0, am_info.shape[0], max_batch_size):
             tmp_logits_clsf, _ = evaluate_motifs(bzip_motif_detector, 
-                                              am_info[i:i+max_batch_size, :], 
-                                              add_info[i:i+max_batch_size, :, :], 
-                                              seg_info[i:i+max_batch_size, :], 
-                                              device)
+                                                  am_info[i:i+max_batch_size, :], 
+                                                  add_info[i:i+max_batch_size, :, :], 
+                                                  seg_info[i:i+max_batch_size, :], 
+                                                  device)
             logits_clsf.append(tmp_logits_clsf)
         logits_clsf = numpy.concat(logits_clsf)
     else:
         logits_clsf, _ = evaluate_motifs(bzip_motif_detector, 
-                                      am_info, 
-                                      add_info, 
-                                      seg_info, 
-                                      device)
+                                          am_info, 
+                                          add_info, 
+                                          seg_info, 
+                                          device)
                                       
     sigmoid_prob = numpy.array([sigmoid(logits_clsf[i, 1]) for i in range(logits_clsf.shape[0])])
     sorted_indices = numpy.argsort(sigmoid_prob)[::-1]
@@ -80,10 +80,10 @@ def find_motifs_and_predict_interaction(protA, protB, bzip_motif_detector, bzip_
     if( len(high_prob_indices) > 0 ):
         best_motif = high_prob_indices[0:1]
         logits_clsf, enc_self_attn = evaluate_motifs(bzip_interaction_detector, 
-                                      am_info[best_motif, :], 
-                                      add_info[best_motif, :, :], 
-                                      seg_info[best_motif, :], 
-                                      device)
+                                                      am_info[best_motif, :], 
+                                                      add_info[best_motif, :, :], 
+                                                      seg_info[best_motif, :], 
+                                                      device)
                                       
         sigmoid_prob = sigmoid(logits_clsf[0, 1])
         sigmoid_prob = numpy.round(sigmoid_prob, 2)
