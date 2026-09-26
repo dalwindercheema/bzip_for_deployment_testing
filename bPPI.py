@@ -40,7 +40,7 @@ def read_sequence(seq_path):
     return seq
 
 
-def find_motifs(protA, protB, bzip_motif_detector, bzip_interaction_detector, mvocab, ovocab, am_acid, device, MAXL = 92, max_batch_size = 256):
+def find_motifs_and_predict_interaction(protA, protB, bzip_motif_detector, bzip_interaction_detector, mvocab, ovocab, am_acid, device, MAXL = 92, max_batch_size = 256):
     max_to_search_A = len(protA) - 29
     max_to_search_B = len(protB) - 29
     indices_A = [i for i, ch in enumerate(protA[:max_to_search_A]) if ch == 'N']
@@ -60,7 +60,7 @@ def find_motifs(protA, protB, bzip_motif_detector, bzip_interaction_detector, mv
     if(am_info.shape[0] > max_batch_size ):
         logits_clsf = []
         for i in range(0, am_info.shape[0], max_batch_size):
-            tmp_logits_clsf = evaluate_motifs(bzip_motif_detector, 
+            tmp_logits_clsf, _ = evaluate_motifs(bzip_motif_detector, 
                                               am_info[i:i+max_batch_size, :], 
                                               add_info[i:i+max_batch_size, :, :], 
                                               seg_info[i:i+max_batch_size, :], 
@@ -68,7 +68,7 @@ def find_motifs(protA, protB, bzip_motif_detector, bzip_interaction_detector, mv
             logits_clsf.append(tmp_logits_clsf)
         logits_clsf = numpy.concat(logits_clsf)
     else:
-        logits_clsf = evaluate_motifs(bzip_motif_detector, 
+        logits_clsf, _ = evaluate_motifs(bzip_motif_detector, 
                                       am_info, 
                                       add_info, 
                                       seg_info, 
@@ -79,7 +79,7 @@ def find_motifs(protA, protB, bzip_motif_detector, bzip_interaction_detector, mv
     high_prob_indices = sorted_indices[sigmoid_prob[sorted_indices] > 0.5]
     if( len(high_prob_indices) > 0 ):
         best_motif = high_prob_indices[0:1]
-        logits_clsf = evaluate_motifs(bzip_interaction_detector, 
+        logits_clsf, enc_self_attn = evaluate_motifs(bzip_interaction_detector, 
                                       am_info[best_motif, :], 
                                       add_info[best_motif, :, :], 
                                       seg_info[best_motif, :], 
@@ -87,9 +87,10 @@ def find_motifs(protA, protB, bzip_motif_detector, bzip_interaction_detector, mv
                                       
         sigmoid_prob = sigmoid(logits_clsf[0, 1])
         sigmoid_prob = numpy.round(sigmoid_prob, 2)
-        return len(high_prob_indices), sigmoid_prob
+        enc_self_attn = enc_self_attn.cpu().numpy()        
+        return len(high_prob_indices), sigmoid_prob, enc_self_attn
     else:
-        return 0, 0
+        return 0, 0, None
 
 
 def save_config(motif_path, interaction_path):
@@ -174,10 +175,11 @@ def bPPI_predict(seqA, seqB, debug = False):
     
     seqA = read_sequence(seqA)
     seqB = read_sequence(seqB)
-    nmotifs, max_pred = find_motifs(seqA, seqB, bzip_motif_detector, bzip_interaction_detector, mvocab, ovocab, am_acid, device)
+    nmotifs, max_pred, enc_self_attn = find_motifs_and_predict_interaction(seqA, seqB, bzip_motif_detector, bzip_interaction_detector, mvocab, ovocab, am_acid, device)
     
     print(f"Motifs detected: {nmotifs}")
     print(f"Interaction Probability: {max_pred}")
+    return enc_self_attn
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Predict bZIP protein protein interaction (bPPI)")
@@ -196,7 +198,7 @@ if __name__ == "__main__":
     if args.download:
         download_models(args.download)
     elif args.seqA and args.seqB:
-        score = bPPI_predict(args.seqA, args.seqB)
+        enc_self_attn = bPPI_predict(args.seqA, args.seqB)
     else:
         parser.print_help()
         print("\n Error: Please specify either --download OR both --seqA and --seqB flags.", file=sys.stderr)
